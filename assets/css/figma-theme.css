@@ -1,0 +1,110 @@
+/* assets/css/figma-theme.css */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;600&display=swap');
+
+:root {
+    --primary-blue: #304FFE;
+    --bg-light: #FFFFFF;
+    --input-bg: #F2F2F2;
+    --text-dark: #000000;
+    --text-gray: #666666;
+    --radius-lg: 12px;
+    --radius-xl: 50px;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-light);
+    color: var(--text-dark);
+    margin: 0;
+    padding: 0;
+}
+
+h1, h2, h3, .serif-font {
+    font-family: 'Playfair Display', serif;
+}
+
+.figma-container {
+    padding: 20px;
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.figma-input-group {
+    margin-bottom: 20px;
+}
+
+.figma-input-group label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+    font-size: 16px;
+}
+
+.figma-input {
+    width: 100%;
+    background-color: var(--input-bg);
+    border: none;
+    padding: 15px;
+    border-radius: var(--radius-lg);
+    font-size: 16px;
+    box-sizing: border-box;
+}
+
+.figma-btn {
+    width: 100%;
+    background-color: var(--primary-blue);
+    color: white;
+    border: none;
+    padding: 15px;
+    border-radius: var(--radius-lg);
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.figma-btn:hover {
+    opacity: 0.9;
+}
+
+.figma-link {
+    color: var(--primary-blue);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+/* Home Screen Styles */
+.search-bar {
+    background: var(--input-bg);
+    border-radius: var(--radius-lg);
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.map-view-header {
+    text-transform: uppercase;
+    font-weight: bold;
+    font-size: 14px;
+    margin-bottom: 10px;
+}
+
+.map-box {
+    width: 100%;
+    height: 300px;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+.parking-app-bar {
+    background: var(--input-bg);
+    padding: 10px;
+    text-align: center;
+    border-radius: var(--radius-lg);
+    margin-bottom: 15px;
+    font-weight: bold;
+}
