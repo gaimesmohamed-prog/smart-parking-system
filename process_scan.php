@@ -14,57 +14,56 @@ $qrData = trim($_POST['qr_data']);
 $car = parking_find_car_by_guid($conn, $qrData);
 
 if (!$car) {
-    $slot = parking_find_available_slot($conn);
-    if (!$slot) {
-        echo json_encode(['status' => 'error', 'message' => 'No available parking slots right now.']);
-        exit;
-    }
-
-    $plate = 'NEW-' . rand(100, 999);
-    $reservation = parking_create_reservation($conn, [
-        'plate_number' => $plate,
-        'slot_id' => $slot,
-        'car_type' => 'sedan',
-        'user_id' => 0,
-    ]);
-
-    if (!$reservation['success']) {
-        echo json_encode(['status' => 'error', 'message' => $reservation['message']]);
-        exit;
-    }
-
-    $entry = parking_mark_entry($conn, $reservation['guid']);
     echo json_encode([
-        'status' => $entry['success'] ? 'success' : 'error',
-        'type' => 'entry',
-        'message' => $entry['message'],
-        'plate' => $plate,
-        'slot' => $slot,
+        'status' => 'error', 
+        'message' => '⚠️ تذكرة غير صالحة أو منتهية الصلاحية.'
     ]);
     exit;
 }
 
+// === حالة الدخول (إذا كان محجوزاً فقط) ===
 if (($car['status'] ?? '') === 'reserved') {
     $entry = parking_mark_entry($conn, $qrData);
+    
+    $userName = "زائر";
+    $uStmt = $conn->prepare("SELECT full_name FROM users WHERE user_id = ?");
+    if ($uStmt) {
+        $uStmt->bind_param("i", $car['user_id']);
+        $uStmt->execute();
+        $uRes = $uStmt->get_result()->fetch_assoc();
+        $userName = $uRes['full_name'] ?? "زائر";
+        $uStmt->close();
+    }
+
     echo json_encode([
         'status' => $entry['success'] ? 'success' : 'error',
         'type' => 'entry',
-        'message' => $entry['message'],
+        'message' => '✅ تم تسجيل دخول المركبة بنجاح!',
         'plate' => $car['plate_number'],
         'slot' => $car['slot_id'],
+        'full_name' => $userName
     ]);
     exit;
 }
 
-$exit = parking_complete_exit($conn, $qrData);
+// === حالة الخروج (إذا كان مشغولاً) ===
+if (($car['status'] ?? '') === 'occupied') {
+    $exit = parking_complete_exit($conn, $qrData);
+    echo json_encode([
+        'status' => $exit['success'] ? 'success' : 'error',
+        'type' => 'exit',
+        'message' => $exit['success']
+            ? "🚪 تم تسجيل الخروج للمركبة {$exit['plate']}. التكلفة: {$exit['cost']} ج.م"
+            : $exit['message'],
+        'plate' => $exit['plate'] ?? null,
+        'cost' => $exit['cost'] ?? null,
+        'slot' => $car['slot_id']
+    ]);
+    exit;
+}
+
 echo json_encode([
-    'status' => $exit['success'] ? 'success' : 'error',
-    'type' => $exit['success'] ? 'exit' : 'error',
-    'message' => $exit['success']
-        ? "Vehicle {$exit['plate']} exited. Duration: {$exit['hours']} hour(s). Cost: {$exit['cost']} EGP."
-        : $exit['message'],
-    'plate' => $exit['plate'] ?? null,
-    'cost' => $exit['cost'] ?? null,
-    'history_id' => $exit['history_id'] ?? null,
+    'status' => 'error',
+    'message' => '⚠️ السيارة في حالة غير معروفة أو تم معالجتها مسبقاً.'
 ]);
 ?>

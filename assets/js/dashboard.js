@@ -1,27 +1,41 @@
-function updateOldDashboard() {
-    fetch('get_slots_status.php')
-        .then(res => res.json())
-        .then(data => {
-            if(data.status === 'success') {
-                const occupied = data.occupied_global || [];
-                const rows = ['A', 'B', 'C', 'D', 'E'];
-                rows.forEach(r => {
-                    for(let i=1; i<=10; i++) {
-                        let s = r + i;
-                        let el = document.getElementById('slot-'+s);
-                        if(el) {
-                            if(occupied.includes(s)) {
-                                el.className = 'slot busy';
-                            } else {
-                                el.className = 'slot free';
-                            }
-                        }
-                    }
-                });
-            }
-        })
-        .catch(err => console.error(err));
-}
+/**
+ * Dashboard Premium Interactions
+ */
 
-// Auto refresh map every 3 seconds
-setInterval(updateOldDashboard, 3000);
+document.addEventListener('DOMContentLoaded', () => {
+    // Add staggered animation delay to cards
+    const cards = document.querySelectorAll('.nav-btn');
+    cards.forEach((card, index) => {
+        card.style.animationDelay = `${(index + 1) * 0.1}s`;
+        card.classList.add('animate-fade-in');
+    });
+
+    // Smooth hover effects for slots
+    const slots = document.querySelectorAll('.slot');
+    slots.forEach(slot => {
+        slot.addEventListener('mouseenter', () => {
+            slot.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+        });
+    });
+});
+
+// Update specific elements with transitions
+function updateSlotUI(slotId, status) {
+    const el = document.getElementById('slot-' + slotId);
+    if (!el) return;
+    
+    // Unify classes: busy (occupied), reserved, free (available)
+    let statusClass = 'free';
+    if (status === 'occupied' || status === 'busy') statusClass = 'busy';
+    else if (status === 'reserved' || status === 'warning') statusClass = 'reserved';
+    
+    const newClass = 'slot ' + statusClass;
+    
+    if (el.className !== newClass) {
+        el.style.transform = 'scale(1.2)';
+        setTimeout(() => {
+            el.className = newClass;
+            el.style.transform = 'scale(1)';
+        }, 200);
+    }
+}

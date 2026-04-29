@@ -15,7 +15,18 @@ $dict = [
         'reports' => 'تقارير',
         'view_map' => 'الخريطة',
         'book_now' => 'احجز الآن',
-        'invalid_ticket' => 'تذكرة غير صالحة'
+        'invalid_ticket' => 'تذكرة غير صالحة',
+        'email' => 'البريد الإلكتروني',
+        'password' => 'كلمة المرور',
+        'signup' => 'إنشاء حساب',
+        'full_name' => 'الاسم الكامل',
+        'phone' => 'رقم الهاتف',
+        'car_plate' => 'رقم اللوحة',
+        'car_model' => 'نوع السيارة',
+        'car_color' => 'اللون',
+        'confirm_email' => 'تأكيد البريد الإلكتروني',
+        'confirm_password' => 'تأكيد كلمة المرور',
+        'ticket_details' => 'تفاصيل التذكرة'
     ],
     'en' => [
         'back' => 'Back',
@@ -28,7 +39,18 @@ $dict = [
         'reports' => 'Reports',
         'view_map' => 'View Map',
         'book_now' => 'Book Now',
-        'invalid_ticket' => 'Invalid Ticket'
+        'invalid_ticket' => 'Invalid Ticket',
+        'email' => 'Email',
+        'password' => 'Password',
+        'signup' => 'Sign Up',
+        'full_name' => 'Full Name',
+        'phone' => 'Phone',
+        'car_plate' => 'Car Plate',
+        'car_model' => 'Car Model',
+        'car_color' => 'Car Color',
+        'confirm_email' => 'Confirm Email',
+        'confirm_password' => 'Confirm Password',
+        'ticket_details' => 'Ticket Details'
     ]
 ];
 

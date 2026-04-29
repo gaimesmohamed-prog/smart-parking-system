@@ -5,103 +5,25 @@ require_once __DIR__ . '/config.php';
 // Fetch the real booking ID from URL
 $booking_id = isset($_GET['id']) ? "#" . str_pad($_GET['id'], 5, "0", STR_PAD_LEFT) : "#00000";
 ?>
-
-<!DOCTYPE html>
-<html lang="<?php echo $current_lang; ?>" dir="<?php echo $dir; ?>">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Booking Successful - Smart Parking</title>
-    <style>
-        .success-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            min-height: 80vh;
-            padding-bottom: 50px;
-        }
-
-        .check-icon {
-            width: 100px;
-            height: 100px;
-            background-color: #4CAF50;
-            color: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 50px;
-            margin-bottom: 30px;
-            box-shadow: 0 10px 20px rgba(76, 175, 80, 0.2);
-        }
-
-        .success-title {
-            font-size: 28px;
-            font-weight: bold;
-            margin-bottom: 15px;
-            font-family: 'Playfair Display', serif;
-        }
-
-        .success-text {
-            color: var(--text-gray);
-            font-size: 14px;
-            margin-bottom: 40px;
-            max-width: 250px;
-            line-height: 1.6;
-        }
-
-        .booking-id-box {
-            background-color: #f8f9fa;
-            border: 1px solid #eee;
-            padding: 12px 25px;
-            border-radius: 10px;
-            font-weight: bold;
-            font-size: 16px;
-            margin-bottom: 40px;
-        }
-
-        .button-group {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            width: 100%;
-            max-width: 300px;
-        }
-        .figma-btn-outline {
-            background-color: transparent;
-            color: var(--primary-blue);
-            border: 2px solid var(--primary-blue);
-            padding: 15px;
-            border-radius: 8px;
-            font-weight: bold;
-            text-decoration: none;
-            text-align: center;
-            font-size: 16px;
-        }
-    </style>
-</head>
-<body>
 <?php include 'navbar.php'; ?>
 
-<div class="figma-container">
-    <div class="success-container">
-        <div class="check-icon">
+<div class="wrapper animate-fade-in" style="min-height: 80vh; display: flex; align-items: center; justify-content: center;">
+    <div class="glass-card" style="padding: 50px; text-align: center; max-width: 500px; width: 90%;">
+        <div style="width: 100px; height: 100px; background-color: #00b894; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 50px; margin: 0 auto 30px; box-shadow: 0 10px 20px rgba(0, 184, 148, 0.2);">
             <i class="fa-solid fa-check"></i>
         </div>
 
-        <div class="success-title">Booking Successful!</div>
+        <h1 style="font-size: 28px; font-weight: bold; margin-bottom: 15px; color: var(--text-main);">Booking Successful!</h1>
         
-        <p class="success-text">Your parking spot has been reserved successfully.</p>
+        <p style="color: var(--text-muted); font-size: 16px; margin-bottom: 40px; line-height: 1.6;">Your parking spot has been reserved successfully.</p>
 
-        <div class="booking-id-box">
-            Booking ID: <?php echo $booking_id; ?>
+        <div style="background: rgba(0,0,0,0.05); border: 1px solid var(--glass-border); padding: 15px 25px; border-radius: 12px; font-weight: bold; font-size: 18px; margin-bottom: 40px; color: var(--text-main);">
+            Booking ID: <span style="color: var(--accent-color);"><?php echo $booking_id; ?></span>
         </div>
 
-        <div class="button-group">
-            <a href="app_dashboard.php" class="figma-btn">Go Home</a>
-            <a href="reports.php" class="figma-btn-outline">View Booking</a>
+        <div style="display: flex; flex-direction: column; gap: 15px; width: 100%;">
+            <a href="dashboard.php" class="mbtn mbtn-enter" style="text-decoration: none;">Go to Dashboard</a>
+            <a href="history.php" class="mbtn mbtn-close" style="text-decoration: none;">View History</a>
         </div>
     </div>
 </div>

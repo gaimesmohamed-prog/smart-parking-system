@@ -15,7 +15,7 @@ define('PAGES_PATH', dirname(__DIR__) . '/pages/');
 define('ADMIN_PATH', dirname(__DIR__) . '/admin/');
 
 // الإعدادات الأمنية
-define('APP_NAME', 'تطبيق ركن السيارات');
+define('APP_NAME', 'Smart Parking System');
 define('APP_VERSION', '1.0.0');
 
 // صلاحيات المستخدم
@@ -23,7 +23,9 @@ define('ROLE_ADMIN', 'admin');
 define('ROLE_USER', 'user');
 define('ROLE_SCANNER', 'scanner');
 
+// وضع العرض التقديمي (Graduation Demo)
+define('DEMO_MODE', true); // Change to false for real calculations
+
 // آخر تحديث للمشروع
 define('LAST_UPDATE', date('Y-m-d H:i:s'));
 ?>
-

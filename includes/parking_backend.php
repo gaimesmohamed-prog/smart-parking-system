@@ -27,19 +27,23 @@ function parking_default_hourly_rate() {
 
 function parking_get_slot_price(mysqli $conn, $slotId) {
     $slotId = parking_normalize_slot($slotId);
-    $stmt = $conn->prepare("SELECT price FROM parking_slots WHERE slot_label = ? LIMIT 1");
-    if ($stmt) {
-        $stmt->bind_param('s', $slotId);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        if ($result && $row = $result->fetch_assoc()) {
+
+    // Only query the price column if it actually exists in the table
+    if (parking_column_exists($conn, 'parking_slots', 'price')) {
+        $stmt = $conn->prepare("SELECT price FROM parking_slots WHERE slot_label = ? LIMIT 1");
+        if ($stmt) {
+            $stmt->bind_param('s', $slotId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result && $row = $result->fetch_assoc()) {
+                $stmt->close();
+                return (float)$row['price'];
+            }
             $stmt->close();
-            return (float)$row['price'];
         }
-        $stmt->close();
     }
-    
-    // Determine price based on first letter if not in DB
+
+    // Determine price based on first letter if column missing or slot not in DB
     $letter = substr($slotId, 0, 1);
     switch ($letter) {
         case 'A': return 15.0;
@@ -216,6 +220,7 @@ function parking_create_reservation(mysqli $conn, array $payload) {
     $carType = trim((string) ($payload['car_type'] ?? 'sedan'));
     $userId = (int) ($payload['user_id'] ?? 0);
     $deductBalance = (float) ($payload['deduct_balance'] ?? 0);
+    $reservedHours = (int) ($payload['reserved_hours'] ?? 1);
 
     if ($plate === '' || $slotId === '') {
         return ['success' => false, 'message' => 'Plate number and slot are required.'];
@@ -264,22 +269,49 @@ function parking_create_reservation(mysqli $conn, array $payload) {
             $updBal->close();
         }
 
-        $insertCar = $conn->prepare("INSERT INTO cars (plate_number, car_model, car_color, slot_id, parking_guid, status, user_id) VALUES (?, ?, ?, ?, ?, 'reserved', ?)");
+        $insertCar = $conn->prepare("INSERT INTO cars (plate_number, car_model, car_color, slot_id, parking_guid, status, user_id, reserved_hours) VALUES (?, ?, ?, ?, ?, 'reserved', ?, ?)");
         if (!$insertCar) {
             throw new RuntimeException('Unable to create reservation.');
         }
-        $insertCar->bind_param('sssssi', $plate, $model, $color, $slotId, $guid, $userId);
+        $insertCar->bind_param('sssssii', $plate, $model, $color, $slotId, $guid, $userId, $reservedHours);
         $insertCar->execute();
         $carId = $insertCar->insert_id;
         $insertCar->close();
 
         $historyAmountColumn = parking_history_amount_column($conn);
-        $histSql = "INSERT INTO parking_history (user_id, car_id, plate_number, slot_id, entry_time, qr_code_path, status, cost) VALUES (?, ?, ?, ?, NOW(), ?, 'active', ?)";
+        $hasHourlyRate = parking_column_exists($conn, 'parking_history', 'hourly_rate');
+        $hasReservedHours = parking_column_exists($conn, 'parking_history', 'reserved_hours');
+
+        $cols = "user_id, car_id, plate_number, slot_id, qr_code_path, status";
+        $vals = "?, ?, ?, ?, ?, 'active'";
+        $types = "iisss";
+        $params = [$userId, $carId, $plate, $slotId, $guid];
+
+        if ($historyAmountColumn) {
+            $cols .= ", $historyAmountColumn";
+            $vals .= ", ?";
+            $types .= "d";
+            $params[] = $deductBalance;
+        }
+        if ($hasReservedHours) {
+            $cols .= ", reserved_hours";
+            $vals .= ", ?";
+            $types .= "i";
+            $params[] = $reservedHours;
+        }
+        if ($hasHourlyRate) {
+            $cols .= ", hourly_rate";
+            $vals .= ", ?";
+            $types .= "d";
+            $params[] = parking_get_slot_price($conn, $slotId);
+        }
+
+        $histSql = "INSERT INTO parking_history ($cols) VALUES ($vals)";
         $insertHistory = $conn->prepare($histSql);
         if (!$insertHistory) {
-            throw new RuntimeException('Unable to create history log.');
+            throw new RuntimeException('Unable to create history log: ' . $conn->error);
         }
-        $insertHistory->bind_param('iisssd', $userId, $carId, $plate, $slotId, $guid, $deductBalance);
+        $insertHistory->bind_param($types, ...$params);
         $insertHistory->execute();
         $insertHistory->close();
 
@@ -300,7 +332,15 @@ function parking_create_reservation(mysqli $conn, array $payload) {
 }
 
 function parking_find_car_by_guid(mysqli $conn, $guid) {
-    $stmt = $conn->prepare("SELECT * FROM cars WHERE parking_guid = ? LIMIT 1");
+    $stmt = $conn->prepare("
+        SELECT c.*, h.entry_time 
+        FROM cars c 
+        LEFT JOIN parking_history h ON h.plate_number = c.plate_number 
+          AND h.slot_id = c.slot_id 
+          AND h.exit_time IS NULL
+        WHERE c.parking_guid = ? 
+        LIMIT 1
+    ");
     if (!$stmt) {
         return null;
     }
@@ -349,7 +389,7 @@ function parking_mark_entry(mysqli $conn, $guid) {
     ];
 }
 
-function parking_complete_exit(mysqli $conn, $guid) {
+function parking_complete_exit(mysqli $conn, $guid, $userId = 0) {
     $car = parking_find_car_by_guid($conn, $guid);
     if (!$car) {
         return ['success' => false, 'message' => 'Ticket not found.'];
@@ -370,35 +410,55 @@ function parking_complete_exit(mysqli $conn, $guid) {
     $historyStmt->close();
 
     if (!$history) {
-        return ['success' => false, 'message' => 'No active parking session found for this vehicle.'];
+        // If no entry_time, it was just a reservation. We treat exit as cancellation but maybe with reservation fee.
+        return parking_cancel_reservation($conn, $car['car_id'], $userId ?: $car['user_id']);
     }
 
     $entryTimestamp = strtotime($history['entry_time']);
     $exitTimestamp = time();
-    $durationHours = max(1, ceil(($exitTimestamp - $entryTimestamp) / 3600));
-    $cost = $durationHours * parking_default_hourly_rate();
+    $durationSeconds = max(0, $exitTimestamp - $entryTimestamp);
+    $durationHours = max(1, ceil($durationSeconds / 3600));
+    
+    $reservedHours = (int)($history['reserved_hours'] ?? 1);
+    $baseRate = (float)($history['hourly_rate'] ?? 10.0);
+    $penaltyRate = 15.0; 
+    
+    $cost = 0;
+    $penaltyAmount = 0;
+    
+    if ($durationHours <= $reservedHours) {
+        $cost = $durationHours * $baseRate;
+    } else {
+        $cost = $reservedHours * $baseRate;
+        $overtimeHours = $durationHours - $reservedHours;
+        $penaltyAmount = $overtimeHours * $penaltyRate;
+        $cost += $penaltyAmount;
+    }
+    
     $exitTime = date('Y-m-d H:i:s', $exitTimestamp);
 
     $conn->begin_transaction();
     try {
+        // Deduct from wallet if userId is provided
+        $deducted = 0;
+        if ($userId > 0) {
+            $u = $conn->prepare("UPDATE users SET balance = balance - ? WHERE user_id = ?");
+            $u->bind_param('di', $cost, $userId);
+            $u->execute();
+            $u->close();
+            $deducted = $cost;
+        }
+
         $historyAmountColumn = parking_history_amount_column($conn);
         if ($historyAmountColumn !== null) {
-            $updateHistory = $conn->prepare("UPDATE parking_history SET exit_time = ?, {$historyAmountColumn} = ? WHERE id = ?");
+            $updateHistory = $conn->prepare("UPDATE parking_history SET exit_time = ?, {$historyAmountColumn} = ?, penalty_amount = ?, status = 'completed' WHERE id = ?");
             if (!$updateHistory) {
                 throw new RuntimeException('Unable to update history.');
             }
             $historyId = (int) $history['id'];
-            $updateHistory->bind_param('sdi', $exitTime, $cost, $historyId);
+            $updateHistory->bind_param('sddi', $exitTime, $cost, $penaltyAmount, $historyId);
             $updateHistory->execute();
             $updateHistory->close();
-        } else {
-            $historyId = (int) $history['id'];
-            $updateHistory = $conn->prepare("UPDATE parking_history SET exit_time = ? WHERE id = ?");
-            if ($updateHistory) {
-                $updateHistory->bind_param('si', $exitTime, $historyId);
-                $updateHistory->execute();
-                $updateHistory->close();
-            }
         }
 
         $deleteCar = $conn->prepare("DELETE FROM cars WHERE parking_guid = ?");
@@ -418,8 +478,49 @@ function parking_complete_exit(mysqli $conn, $guid) {
             'slot_id' => $slotId,
             'hours' => $durationHours,
             'cost' => $cost,
-            'history_id' => $historyId,
+            'deducted' => $deducted,
+            'history_id' => (int)$history['id'],
         ];
+    } catch (Throwable $e) {
+        $conn->rollback();
+        return ['success' => false, 'message' => $e->getMessage()];
+    }
+}
+
+function parking_cancel_reservation(mysqli $conn, $carId, $userId) {
+    $stmt = $conn->prepare("SELECT * FROM cars WHERE car_id = ? AND user_id = ? AND status = 'reserved'");
+    $stmt->bind_param('ii', $carId, $userId);
+    $stmt->execute();
+    $car = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$car) {
+        return ['success' => false, 'message' => 'Reservation not found or already active.'];
+    }
+
+    $slotId = $car['slot_id'];
+    $plate = $car['plate_number'];
+
+    $conn->begin_transaction();
+    try {
+        // Mark history as cancelled
+        $historySlotColumn = parking_history_slot_column($conn);
+        $updateHistory = $conn->prepare("UPDATE parking_history SET status = 'cancelled', exit_time = NOW() WHERE plate_number = ? AND {$historySlotColumn} = ? AND exit_time IS NULL");
+        $updateHistory->bind_param('ss', $plate, $slotId);
+        $updateHistory->execute();
+        $updateHistory->close();
+
+        // Remove from active cars
+        $deleteCar = $conn->prepare("DELETE FROM cars WHERE car_id = ?");
+        $deleteCar->bind_param('i', $carId);
+        $deleteCar->execute();
+        $deleteCar->close();
+
+        // Release slot
+        parking_update_slot_status($conn, $slotId, 'available');
+
+        $conn->commit();
+        return ['success' => true, 'message' => "Reservation for slot {$slotId} cancelled successfully."];
     } catch (Throwable $e) {
         $conn->rollback();
         return ['success' => false, 'message' => $e->getMessage()];

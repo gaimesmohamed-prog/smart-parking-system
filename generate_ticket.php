@@ -1,11 +1,13 @@
 <?php
+require_once 'config/settings.php';
+
 // استقبال البيانات من الرابط (URL)
 $name  = $_GET['name'] ?? 'عميل';
 $plate = $_GET['plate'] ?? '---';
 $lot   = $_GET['lot'] ?? '0';
 
-// شيل localhost وحط الـ IP بتاعك (مثلاً 192.168.1.5)
-$actual_link = "http://192.168.1.8:8080/parking%20app%20test/pay_now.php?plate=" . urlencode($plate) . "&lot=" . $lot;;
+// إنشاء الرابط بشكل ديناميكي بناءً على إعدادات السيرفر
+$actual_link = BASE_URL . "pay_now.php?plate=" . urlencode($plate) . "&lot=" . $lot;
 
 $qr_image_url = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" . urlencode($actual_link);
 ?>

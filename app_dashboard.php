@@ -1,113 +1,361 @@
 <?php
 require_once 'header.php';
 
-$dashboardSlots = [];
-$rows = ['A', 'B', 'C', 'D', 'E'];
-foreach ($rows as $r) {
-    for ($i = 1; $i <= 10; $i++) {
-        $dashboardSlots[] = $r . $i;
+// Prepare slot status map
+$historySlotCol = parking_history_slot_column($conn);
+$cRes = $conn->query(
+    "SELECT c.car_id, c.plate_number, c.car_model, c.car_color, c.slot_id,
+            c.status AS car_status, c.parking_guid, c.reserved_hours,
+            (SELECT h.entry_time FROM parking_history h 
+             WHERE h.plate_number = c.plate_number AND UPPER(h.{$historySlotCol}) = UPPER(c.slot_id) AND h.exit_time IS NULL 
+             ORDER BY h.id DESC LIMIT 1) as entry_time
+     FROM cars c
+     WHERE c.status IN ('reserved','occupied')"
+);
+$carsMap = [];
+if ($cRes) {
+    while($row = $cRes->fetch_assoc()) {
+        $carsMap[strtoupper($row['slot_id'])] = $row;
     }
 }
-$dashboard = parking_get_dashboard_slots($conn, $dashboardSlots);
-$slots = $dashboard['slots'];
-$freeCount = $dashboard['free_count'];
-$occupiedCount = $dashboard['occupied_count'];
-?>
 
-<!DOCTYPE html>
-<html lang="<?php echo $current_lang; ?>" dir="<?php echo $dir; ?>">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Parking - Live Dashboard</title>
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#5D5FEF">
-    <link rel="stylesheet" href="assets/css/style.css">
-    <style>
-        :root { --primary: #5D5FEF; --success: #28a745; --danger: #dc3545; --warning: #ffc107; --info: #007bff; }
-        body { font-family: 'Segoe UI', sans-serif; background-color: #f8f9fd; margin: 0; padding: 20px; }
-        .header-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; margin-top: 60px; }
-        .stat-box { font-size: 22px; font-weight: 700; color: #333; }
-        .admin-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 30px; }
-        .admin-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 18px; border-radius: 20px; text-decoration: none; color: white; font-weight: bold; transition: 0.3s; box-shadow: 0 8px 15px rgba(0,0,0,0.1); }
-        .btn-camera { background: linear-gradient(135deg, var(--primary) 0%, #8E90FF 100%); }
-        .btn-reports { background: linear-gradient(135deg, #00D2B1 0%, #00E6C3 100%); }
-        .closest-btn { background-color: var(--primary); color: white; width: 100%; padding: 15px; border-radius: 12px; text-align: center; font-size: 20px; font-weight: bold; margin-bottom: 30px; display: block; text-decoration: none; }
-        .grid-container { display: grid; grid-template-columns: repeat(10, 1fr); gap: 5px; }
-        @media (max-width: 768px) {
-            .grid-container { grid-template-columns: repeat(10, 1fr); gap: 3px; }
-            .slot-card { padding: 5px; height: 50px; }
-            .slot-id { font-size: 14px; flex-direction: column; gap: 2px; }
-            .slot-status { font-size: 8px; display: none; }
-        }
-        .slot-card { background: white; border: 2px solid; border-radius: 8px; padding: 10px; color: #333; height: 70px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
-        .slot-id { font-size: 16px; font-weight: 800; display: flex; align-items: center; gap: 5px; }
-        .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-        .slot-status { font-size: 10px; opacity: 0.8; margin-top: 4px; }
-        .not-occupied { border-color: var(--success); background-color: #e8f5e9; } .not-occupied .dot { background: var(--success); }
-        .occupied { border-color: var(--danger); background-color: #ffebee; color: #b71c1c; } .occupied .dot { background: var(--danger); }
-        .warning { border-color: var(--warning); background-color: #fff8e1; color: #f57f17; } .warning .dot { background: var(--warning); }
-        .closest { border-color: var(--info); } .closest .dot { background: var(--info); }
-        .view-map { background: var(--primary); color: white; padding: 10px 20px; border-radius: 10px; text-decoration: none; font-weight: 600; }
-    </style>
-</head>
-<body>
+$slotsData = parking_get_dashboard_slots($conn, [
+    'A1','A2','A3','A4','A5','A6','A7','A8','A9','A10',
+    'B1','B2','B3','B4','B5','B6','B7','B8','B9','B10',
+    'C1','C2','C3','C4','C5','C6','C7','C8','C9','C10',
+    'D1','D2','D3','D4','D5','D6','D7','D8','D9','D10',
+    'E1','E2','E3','E4','E5','E6','E7','E8','E9','E10'
+]);
+$slots = $slotsData['slots'];
+?>
 <?php include 'navbar.php'; ?>
 
-<div class="header-nav">
-    <div class="stat-box" id="free-count">Available: <?php echo $freeCount; ?></div>
-    <div class="stat-box" id="used-count">Occupied: <?php echo $occupiedCount; ?></div>
-</div>
+<div class="wrapper animate-fade-in">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+        <h2 style="margin:0; color: var(--text-main);">
+            <i class="fas fa-microchip"></i> Admin Dashboard
+        </h2>
+    </div>
 
-<div class="admin-tools">
-    <a href="add_car.php" class="admin-btn btn-create" style="background: linear-gradient(135deg, #FF9A9E 0%, #FECFEF 100%); color: #333;"><i class="fas fa-plus-circle"></i><span>Create Ticket</span></a>
-    <a href="admin_scanner.php" class="admin-btn btn-camera"><i class="fas fa-video"></i><span>QR Entrance</span></a>
-    <a href="reports.php" class="admin-btn btn-reports"><i class="fas fa-chart-pie"></i><span>Reports</span></a>
-    <a href="parking_details.php" class="admin-btn btn-flow" style="background: linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%);"><i class="fas fa-route"></i><span>Booking Flow</span></a>
-</div>
-
-<a href="map_view.php" class="closest-btn">Closest Slot: B3</a>
-
-<h3 style="margin-bottom: 20px;">Dashboard (Real-time)</h3>
-
-<div class="grid-container" id="slots-container">
-    <?php foreach ($slots as $slot): ?>
-        <div class="slot-card <?php echo $slot['status']; ?>">
-            <div class="slot-id"><?php echo $slot['id']; ?><span class="dot"></span></div>
-            <div class="slot-status"><?php echo $slot['text']; ?></div>
+    <div class="report-summary-grid" style="margin-bottom: 30px;">
+        <div class="stat-card">
+            <div class="stat-value" id="free-count"><?php echo $slotsData['free_count']; ?></div>
+            <div class="stat-label">Available Slots</div>
         </div>
-    <?php endforeach; ?>
+        <div class="stat-card">
+            <div class="stat-value" id="used-count"><?php echo $slotsData['occupied_count']; ?></div>
+            <div class="stat-label">Occupied/Reserved</div>
+        </div>
+    </div>
+
+    <div class="glass-card" style="padding: 20px; margin-bottom: 30px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px;">
+            <a href="add_car.php" class="nav-btn" style="background: var(--accent-color); padding: 15px;">
+                <i class="fas fa-plus-circle"></i>
+                <span>Entry Ticket</span>
+            </a>
+            <a href="admin_scanner.php" class="nav-btn" style="background: #00b894; padding: 15px;">
+                <i class="fas fa-qrcode"></i>
+                <span>Scanner</span>
+            </a>
+            <a href="reports.php" class="nav-btn" style="background: #fdcb6e; padding: 15px;">
+                <i class="fas fa-chart-bar"></i>
+                <span>Reports</span>
+            </a>
+            <a href="view_cars.php" class="nav-btn" style="background: #ff7675; padding: 15px;">
+                <i class="fas fa-car"></i>
+                <span>Vehicles</span>
+            </a>
+        </div>
+    </div>
+
+    <div class="glass-card" style="padding: 20px;">
+        <h5 style="margin-top:0; color: var(--text-main);"><i class="fas fa-th"></i> Real-time Slot Map</h5>
+        <div class="grid-container" id="slots-container">
+            <?php foreach ($slots as $slot):
+                $slotIdUpper = strtoupper($slot['id']);
+                $slotData  = $carsMap[$slotIdUpper] ?? null;
+                $entryTs   = ($slotData && $slotData['entry_time']) ? strtotime($slotData['entry_time']) : 0;
+                
+                // Unify status classes with dashboard.css
+                $statusClass = 'free';
+                if ($slot['status'] === 'occupied') $statusClass = 'busy';
+                elseif ($slot['status'] === 'warning' || $slot['status'] === 'reserved') $statusClass = 'reserved';
+            ?>
+                <div class="slot-card <?php echo $statusClass; ?> <?php echo $slotData ? 'clickable' : ''; ?>"
+                     id="slot-<?php echo $slot['id']; ?>"
+                     data-slot="<?php echo htmlspecialchars($slot['id']); ?>"
+                     data-status="<?php echo $slotData ? htmlspecialchars($slotData['car_status']) : 'available'; ?>"
+                     <?php if($slotData): ?>
+                        data-plate="<?php echo htmlspecialchars($slotData['plate_number']); ?>"
+                        data-model="<?php echo htmlspecialchars($slotData['car_model']); ?>"
+                        data-color="<?php echo htmlspecialchars($slotData['car_color'] ?? 'White'); ?>"
+                        data-guid="<?php echo htmlspecialchars($slotData['parking_guid']); ?>"
+                        data-car-id="<?php echo (int)$slotData['car_id']; ?>"
+                        data-entry="<?php echo $entryTs; ?>"
+                        data-reserved="<?php echo (int)($slotData['reserved_hours'] ?? 1); ?>"
+                        onclick="openSlotModal(this)"
+                     <?php endif; ?>>
+                    <div class="slot-id"><?php echo $slot['id']; ?><span class="dot"></span></div>
+                    <div class="slot-status" id="status-text-<?php echo $slot['id']; ?>"><?php echo $slot['text']; ?></div>
+                    <div class="mini-timer" id="mini-timer-<?php echo $slot['id']; ?>" style="display: <?php echo ($slot['status'] === 'occupied' || $slot['status'] === 'warning') ? 'block' : 'none'; ?>">00:00:00</div>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
 </div>
 
-<div style="text-align: center; margin-top: 30px;">
-    <a href="map_view.php" class="view-map">View Map</a>
+        <div style="text-align:center;margin-top:15px;">
+            <a href="map_view.php" class="nav-btn" style="display: inline-flex; background: var(--primary); color: white; padding: 10px 20px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 13px;">
+                <i class="fas fa-map-marked-alt"></i> خريطة المواقف
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="slotModal" onclick="closeIfOverlay(event)">
+    <div class="modal">
+        <div class="modal-header" id="modalHeader">
+            <div class="modal-slot" id="modalSlot">—</div>
+            <h3 id="modalTitle">تفاصيل المكان</h3>
+        </div>
+
+        <div class="modal-timer">
+            <div class="timer-lbl">⏱ وقت الركن</div>
+            <div class="timer-val waiting" id="modalTimer">⏳</div>
+            <div class="cost-val" id="modalCost">—</div>
+        </div>
+
+        <div class="modal-body">
+            <div class="car-row"><span class="cr-lbl">رقم اللوحة</span><span class="cr-val" id="mPlate">—</span></div>
+            <div class="car-row"><span class="cr-lbl">نوع السيارة</span><span class="cr-val" id="mModel">—</span></div>
+            <div class="car-row"><span class="cr-lbl">اللون</span>      <span class="cr-val" id="mColor">—</span></div>
+            <div class="car-row"><span class="cr-lbl">مدة الحجز</span>  <span class="cr-val" id="mReserved">—</span></div>
+            <div class="car-row"><span class="cr-lbl">وقت الدخول</span><span class="cr-val" id="mEntry">—</span></div>
+        </div>
+
+        <div class="modal-footer">
+            <button class="mbtn mbtn-enter" id="btnEnter" style="display:none" onclick="doMarkEntry()">
+                🚗 دخول السيارة — بدء التايمر
+            </button>
+            <a href="#" class="mbtn mbtn-out" id="btnCheckout" style="display:none">
+                🚪 تسجيل الخروج وحساب الفاتورة
+            </a>
+            <button class="mbtn mbtn-close" onclick="closeModal()">&#x2715; إغلاق</button>
+        </div>
+    </div>
 </div>
 
 <script>
-    function updateDashboard() {
-        fetch('get_slots_status.php')
-            .then(response => response.json())
-            .then(data => {
-                if (data.status !== 'success') return;
+const RATE       = 10 / 3600;
+const SERVER_NOW = <?php echo time(); ?>;
+const CLIENT_NOW = Math.floor(Date.now() / 1000);
+const TIME_OFFSET = SERVER_NOW - CLIENT_NOW;
 
-                document.getElementById('free-count').innerText = 'Available: ' + data.free_count;
-                document.getElementById('used-count').innerText = 'Occupied: ' + data.occupied_count;
+function getNow() {
+    return Math.floor(Date.now() / 1000) + TIME_OFFSET;
+}
+let timerInt  = null;
+let activeGuid = '';
+let activeCarId = '';
 
-                let html = '';
-                data.dashboard_slots.forEach(slot => {
-                    html += `
-                        <div class="slot-card ${slot.status}">
-                            <div class="slot-id">${slot.id}<span class="dot"></span></div>
-                            <div class="slot-status">${slot.text}</div>
-                        </div>
-                    `;
-                });
-                document.getElementById('slots-container').innerHTML = html;
-            });
+function fmtTime(sec) {
+    sec = Math.max(0, Math.floor(sec));
+    return [Math.floor(sec/3600), Math.floor((sec%3600)/60), sec%60]
+           .map(v => String(v).padStart(2,'0')).join(':');
+}
+
+function startTimer(fromSec, reservedHours = 1) {
+    if (timerInt) clearInterval(timerInt);
+    const timerEl = document.getElementById('modalTimer');
+    const costEl  = document.getElementById('modalCost');
+    const titleEl = document.getElementById('modalTitle');
+    const reservedSec = reservedHours * 3600;
+
+    function tick() {
+        const now = getNow();
+        const elapsed = now - fromSec;
+        timerEl.textContent = fmtTime(elapsed);
+        
+        if (elapsed > reservedSec) {
+            timerEl.style.color = '#ff4d4d';
+            titleEl.textContent = '🚨 تم تجاوز الوقت - تطبق غرامة';
+            titleEl.style.color = '#ff4d4d';
+            const baseCost = reservedHours * 10;
+            const extraHours = Math.ceil((elapsed - reservedSec) / 3600);
+            const extraCost = extraHours * 15;
+            costEl.textContent = (baseCost + extraCost).toFixed(2) + ' ج.م (شامل الغرامة)';
+        } else {
+            timerEl.style.color = '#e74c3c';
+            costEl.textContent  = (Math.ceil(elapsed / 3600) * 10).toFixed(2) + ' ج.م';
+        }
+    }
+    tick();
+    timerInt = setInterval(tick, 1000);
+}
+
+function openSlotModal(el) {
+    const slot    = el.dataset.slot;
+    const status  = el.dataset.status;
+    const plate   = el.dataset.plate;
+    const model   = el.dataset.model;
+    const color   = el.dataset.color;
+    const guid    = el.dataset.guid;
+    const carId   = el.dataset.carId;
+    const entryTs = parseInt(el.dataset.entry) || 0;
+    const reservedHours = parseInt(el.dataset.reserved) || 1;
+    activeGuid  = guid;
+    activeCarId = carId;
+
+    document.getElementById('modalSlot').textContent = slot;
+    document.getElementById('mPlate').textContent   = plate;
+    document.getElementById('mModel').textContent   = model;
+    document.getElementById('mColor').textContent   = color;
+    document.getElementById('mReserved').textContent = reservedHours + ' ساعة';
+
+    setModalStatus(status, entryTs, reservedHours);
+    document.getElementById('slotModal').classList.add('open');
+}
+
+function setModalStatus(status, entryTs, reservedHours = 1) {
+    const header   = document.getElementById('modalHeader');
+    const timerEl  = document.getElementById('modalTimer');
+    const costEl   = document.getElementById('modalCost');
+    const btnEnter = document.getElementById('btnEnter');
+    const btnOut   = document.getElementById('btnCheckout');
+
+    header.className = 'modal-header ' + status;
+    document.getElementById('modalTitle').textContent =
+        status === 'occupied' ? '🔴 مكان مشغول' : '🟡 محجوز — في انتظار الدخول';
+
+    if (entryTs) {
+        const d = new Date(entryTs * 1000);
+        document.getElementById('mEntry').textContent = d.toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'});
+    } else {
+        document.getElementById('mEntry').textContent = '—';
     }
 
-    setInterval(updateDashboard, 3000);
-</script>
+    if (timerInt) clearInterval(timerInt);
 
+    if (status === 'occupied' && entryTs) {
+        startTimer(entryTs, reservedHours);
+        btnEnter.style.display = 'none';
+        btnOut.style.display   = 'block';
+        btnOut.href = 'checkout.php?car_id=' + activeCarId + '&guid=' + encodeURIComponent(activeGuid);
+    } else {
+        timerEl.className   = 'timer-val waiting';
+        timerEl.textContent = '⏳ انتظار الدخول';
+        costEl.textContent  = 'التايمر يبدأ عند الدخول';
+        btnEnter.style.display = 'block';
+        btnOut.style.display   = 'none';
+    }
+}
+
+function doMarkEntry() {
+    const btn = document.getElementById('btnEnter');
+    btn.disabled = true;
+    btn.textContent = '⏳ جاري التسجيل...';
+
+    const fd = new FormData();
+    fd.append('guid', activeGuid);
+
+    fetch('api/mark_entry.php', {method:'POST', body: fd})
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                showToast(data.message, 'error');
+                btn.disabled = false;
+                btn.textContent = '🚗 دخول السيارة — بدء التايمر';
+                return;
+            }
+            closeModal();
+            showToast('تم تسجيل دخول السيارة بنجاح', 'success');
+            const slotId = document.getElementById('modalSlot').textContent;
+            const slotEl = document.getElementById('slot-' + slotId);
+            if (slotEl) {
+                slotEl.className = 'slot-card busy clickable';
+                slotEl.dataset.status = 'occupied';
+                slotEl.dataset.entry  = data.entry_ts;
+                const statusTxt = document.getElementById('status-text-' + slotId);
+                if (statusTxt) statusTxt.textContent = 'Occupied';
+                const miniTimer = document.getElementById('mini-timer-' + slotId);
+                if (miniTimer) miniTimer.style.display = 'block';
+            }
+        })
+        .catch(() => {
+            showToast('تعذر الاتصال بالخادم', 'error');
+            btn.disabled = false;
+        });
+}
+
+function closeModal() {
+    document.getElementById('slotModal').classList.remove('open');
+    if (timerInt) clearInterval(timerInt);
+}
+
+function closeIfOverlay(e) {
+    if (e.target === document.getElementById('slotModal')) closeModal();
+}
+
+function globalTick() {
+    document.querySelectorAll('.slot-card.occupied, .slot-card.warning').forEach(el => {
+        const entryTs = parseInt(el.dataset.entry);
+        const resHours = parseInt(el.dataset.reserved) || 1;
+        const timerEl = document.getElementById('mini-timer-' + el.dataset.slot);
+        if (!timerEl) return;
+
+        if (el.dataset.status === 'occupied') {
+            timerEl.style.display = 'block';
+            const startTs = entryTs || getNow();
+            const elapsed = getNow() - startTs;
+            timerEl.textContent = fmtTime(elapsed);
+            if (elapsed > (resHours * 3600)) timerEl.style.color = '#ff4d4d';
+            else timerEl.style.color = '';
+        } else {
+            timerEl.style.display = 'block';
+            timerEl.textContent = 'Wait';
+        }
+    });
+}
+setInterval(globalTick, 1000);
+
+function updateDashboard() {
+    fetch('get_slots_status.php')
+        .then(r => r.json())
+        .then(data => {
+            if (!data || !data.slots) return;
+            data.slots.forEach(s => {
+                const el = document.getElementById('slot-' + s.id);
+                if (!el) return;
+                
+                // Map status to UI classes
+                const cls = s.status === 'occupied' ? 'busy' : s.status === 'reserved' ? 'reserved' : 'free';
+                const clickable = (s.status !== 'available' && s.status !== 'not-occupied') ? ' clickable' : '';
+                
+                el.className = 'slot-card ' + cls + clickable;
+                el.dataset.status = s.status;
+                
+                const statusTxt = document.getElementById('status-text-' + s.id);
+                if (statusTxt) statusTxt.textContent = s.status === 'occupied' ? 'Occupied' : (s.status === 'reserved' ? 'Reserved' : 'Available');
+                
+                if (s.status === 'available' || s.status === 'not-occupied') {
+                    el.dataset.entry = "0";
+                    el.onclick = null;
+                    const miniTimer = document.getElementById('mini-timer-' + s.id);
+                    if (miniTimer) miniTimer.style.display = 'none';
+                } else {
+                    // If it's a new booking, we'd need more data to make it clickable. 
+                    // For now, let's just update the status colors.
+                }
+            });
+            const free = data.slots.filter(s => s.status === 'available' || s.status === 'not-occupied').length;
+            const occ  = data.slots.filter(s => s.status !== 'available' && s.status !== 'not-occupied').length;
+            document.getElementById('free-count').textContent = free;
+            document.getElementById('used-count').textContent = occ;
+        })
+        .catch(() => {});
+}
+setInterval(updateDashboard, 5000);
+</script>
 </body>
 </html>

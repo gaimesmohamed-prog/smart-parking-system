@@ -13,55 +13,42 @@ while($row = $result->fetch_assoc()) {
 // تعريف أماكن الجراج (GUIDs)
 $all_slots = ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8']; 
 ?>
-
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <title>خريطة المواقف التفاعلية</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="assets/css/parking_map.css">
-
-    <!-- Global Nav Styles -->
-    <style>
-        .slot.available {
-            cursor: pointer;
-            text-decoration: none !important;
-            color: inherit !important;
-            display: block;
-        }
-        .slot.available:hover {
-            opacity: 0.8;
-            transform: scale(1.05);
-            transition: 0.2s;
-        }
-    </style>
-</head>
-<body class="bg-light p-4">
 <?php include 'navbar.php'; ?>
 
-    <div class="container text-center">
-        <h2 class="mb-4">🗺️ خريطة توزيع السيارات (GUID Real-time)</h2>
-        <div class="row g-3 justify-content-center">
-            <?php foreach($all_slots as $slot_guid): ?>
-                <div class="col-auto">
-                    <?php if(isset($occupied_slots[$slot_guid])): ?>
-                        <div class="slot occupied">
-                            <span>🚗 <?php echo $slot_guid; ?></span>
-                            <small><?php echo htmlspecialchars($occupied_slots[$slot_guid]); ?></small>
-                        </div>
-                    <?php else: ?>
-                        <a href="confirm_booking.php?slot=<?php echo urlencode($slot_guid); ?>" class="slot available">
-                            <span>✅ <?php echo $slot_guid; ?></span>
-                            <small>متاح (اضغط للحجز)</small>
-                        </a>
-                    <?php endif; ?>
-                </div>
-            <?php endforeach; ?>
-        </div>
-        <div class="mt-5">
-            <a href="dashboard.php" class="btn btn-primary">العودة للوحة التحكم</a>
-        </div>
+<div class="wrapper animate-fade-in" style="margin-top: 40px;">
+    <div style="text-align: center; margin-bottom: 40px;">
+        <h2 style="color: var(--text-main); font-weight: 800; font-family: 'Righteous', cursive;">
+            <i class="fas fa-map-marked-alt" style="color: var(--accent-color);"></i> <?php echo __('view_map'); ?>
+        </h2>
+        <p style="color: var(--text-muted);"><?php echo __('qr_entrance'); ?> Real-time Status</p>
     </div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;">
+        <?php foreach($all_slots as $slot_guid): ?>
+            <div style="flex: 0 0 auto;">
+                <?php if(isset($occupied_slots[$slot_guid])): ?>
+                    <div class="glass-card" style="width: 150px; padding: 20px; text-align: center; border-bottom: 5px solid #ff4d4d; opacity: 0.8;">
+                        <i class="fas fa-car" style="font-size: 30px; color: #ff4d4d; margin-bottom: 10px;"></i>
+                        <div style="font-weight: 800; font-size: 18px; color: var(--text-main);"><?php echo $slot_guid; ?></div>
+                        <div style="font-size: 11px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><?php echo htmlspecialchars($occupied_slots[$slot_guid]); ?></div>
+                    </div>
+                <?php else: ?>
+                    <a href="confirm_booking.php?slot=<?php echo urlencode($slot_guid); ?>" class="glass-card" style="display: block; width: 150px; padding: 20px; text-align: center; border-bottom: 5px solid #00b894; text-decoration: none; transition: transform 0.3s;">
+                        <i class="fas fa-check-circle" style="font-size: 30px; color: #00b894; margin-bottom: 10px;"></i>
+                        <div style="font-weight: 800; font-size: 18px; color: var(--text-main);"><?php echo $slot_guid; ?></div>
+                        <div style="font-size: 11px; color: #00b894; font-weight: 700;"><?php echo __('available'); ?></div>
+                    </a>
+                <?php endif; ?>
+            </div>
+        <?php endforeach; ?>
+    </div>
+
+    <div style="text-align: center; margin-top: 50px;">
+        <a href="dashboard.php" class="mbtn mbtn-close" style="display: inline-flex; width: auto; padding: 12px 30px; text-decoration: none;">
+            <i class="fas fa-arrow-left"></i> <?php echo __('back'); ?>
+        </a>
+    </div>
+</div>
+
 </body>
 </html>
